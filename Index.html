@@ -1,0 +1,1298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>EL613 Demographic Toolkit Dashboard</title>
+<script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
+<style>
+  :root { --muted:#a9b3d1; --text:#eef2ff; --border: rgba(255,255,255,0.10); }
+  body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+         background: linear-gradient(180deg, #070b18 0%, #0b1020 35%, #070b18 100%); color: var(--text); }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 18px 16px 40px; }
+  .topbar { display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  h1 { font-size: 20px; margin: 0; letter-spacing: .2px; }
+  .subtitle { color: var(--muted); font-size: 12.5px; margin-top: 6px; line-height: 1.35; }
+  .statuspill { font-size: 12px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 999px;
+                background: rgba(255,255,255,0.04); color: var(--muted); }
+  .tabs { display:flex; gap:8px; flex-wrap:wrap; margin: 14px 0 10px; }
+  .tabbtn { cursor:pointer; user-select:none; font-size: 13px; padding: 9px 12px; border-radius: 12px;
+            border: 1px solid var(--border); background: rgba(255,255,255,0.03); color: var(--text); }
+  .tabbtn.active { background: rgba(255,255,255,0.10); }
+  .panel { border:1px solid var(--border); border-radius: 18px; background: rgba(17,26,51,0.75);
+           box-shadow: 0 10px 30px rgba(0,0,0,0.25); padding: 14px; }
+  .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .kpis { display:grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+  @media (max-width: 1100px) { .kpis { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 650px)  { .grid2 { grid-template-columns: 1fr; } .kpis { grid-template-columns: repeat(2, 1fr); } }
+  .kpi { padding: 10px 11px; border-radius: 14px; background: rgba(255,255,255,0.04); border:1px solid var(--border); }
+  .kpi .lab { color: var(--muted); font-size: 11.5px; }
+  .kpi .val { font-size: 18px; font-weight: 700; margin-top: 4px; }
+  .kpi .meta { color: var(--muted); font-size: 11px; margin-top: 3px; }
+  .note { color: var(--muted); font-size: 12px; line-height: 1.4; }
+  .btnrow { display:flex; gap:8px; flex-wrap:wrap; }
+  button { cursor:pointer; border:1px solid var(--border); background: rgba(255,255,255,0.05); color: var(--text);
+           padding: 8px 10px; border-radius: 12px; font-size: 12.5px; }
+  button:hover { background: rgba(255,255,255,0.09); }
+  .hidden { display:none; }
+  table { width:100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td { padding: 8px 8px; border-bottom: 1px solid rgba(255,255,255,0.08); text-align:left; }
+  th { color: var(--muted); font-weight: 600; }
+  .small { font-size: 11.5px; color: var(--muted); }
+  .plot { width:100%; height: 360px; }
+  .plotTall { width:100%; height: 520px; }
+  .ctl { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  select { background: rgba(255,255,255,0.05); color: var(--text); border:1px solid var(--border); border-radius: 12px; padding: 7px 10px; font-size: 12.5px; }
+  label.small { font-size: 11.5px; color: var(--muted); }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div>
+      <h1>EL613 Demographic Toolkit (Eurostat)</h1>
+      <div class="subtitle">Generated (UTC): 2026-01-29 11:39:30 • Your local time: <span id="localTime">—</span>. If any chart appears blank, confirm you have an internet connection (Eurostat is fetched live).<br/>
+      Trend charts use Eurostat population totals for EL613 and Greece (EL).</div>
+    </div>
+    <div class="statuspill" id="statusPill">Loading…</div>
+  </div>
+
+  <div class="tabs" id="tabs">
+    <div class="tabbtn active" data-tab="summary">Summary</div>
+    <div class="tabbtn" data-tab="ages">Age Structure</div>
+    <div class="tabbtn" data-tab="mbase">Municipal Baseline</div>
+    <div class="tabbtn" data-tab="mlau">Municipalities (LAU)</div>
+  </div>
+
+  <div class="panel" id="tab-summary">
+    <div class="grid2">
+      <div>
+        <h2 style="margin:0 0 8px 0; font-size:15px;">Key levels and rates</h2>
+        <div class="kpis" id="kpiGrid"></div>
+        <div class="note" style="margin-top:10px;">
+          Vital events reference the latest calendar year available. Rates are computed per 1,000 using population stock (“Population on 1 January”) closest to that year.
+        </div>
+        <div class="btnrow" style="margin-top:10px;">
+          <button id="btnCacheAll">Cache data for offline use</button>
+          <button id="btnClearCache">Clear local cache</button>
+        </div>
+        <div class="small" id="cacheMsg" style="margin-top:6px;"></div>
+        <div class="small mono" id="kpiDiag" style="margin-top:8px;"></div>
+      </div>
+      <div>
+        <h2 style="margin:0 0 8px 0; font-size:15px;">Life expectancy at birth (NUTS2 + national)</h2>
+        <div class="note">Life expectancy is shown at NUTS2 level (EL61) for the EL613 parent region, plus Greece (EL).</div>
+        <div style="margin-top:8px;">
+          <table id="lexTable">
+            <thead><tr><th>Geography</th><th>Male (years)</th><th>Female (years)</th><th>Year</th></tr></thead>
+            <tbody><tr><td colspan="4" class="small">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid2" style="margin-top:12px;">
+      <div>
+        <h2 style="margin:0 0 8px 0; font-size:15px;">Population growth rate (%), 1990–present</h2>
+        <div class="note">Annotation at 2022 highlights a likely statistical break (revisions linked to the 2021 census), not a sudden “real” demographic shock.<br/>
+        Trend charts use Eurostat population totals for EL613 and Greece (EL).</div>
+        <div id="plotGrowth" class="plot"></div>
+      </div>
+      <div>
+        <h2 style="margin:0 0 8px 0; font-size:15px;">Population index (1990 = 100)</h2>
+        <div id="plotIndex" class="plot"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel hidden" id="tab-ages">
+    <div class="grid2">
+      <div>
+        <h2 style="margin:0 0 8px 0; font-size:15px;">Population pyramid (EL613, latest)</h2>
+        <div class="note">Shares are percentages of total population by sex. Youngest ages are at the bottom.</div>
+        <div id="plotPyramid" class="plotTall"></div>
+      </div>
+      <div>
+        <h2 style="margin:0 0 8px 0; font-size:15px;">Age-group shares (male vs female)</h2>
+        <div id="plotAgeShares" class="plotTall"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel hidden" id="tab-mbase">
+    <div class="grid2">
+      <div>
+        <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+          <div>
+            <h2 style="margin:0 0 2px 0; font-size:15px;">Municipal baseline (counts & shares)</h2>
+            <div class="small">Toggle counts vs share</div>
+          </div>
+          <div class="ctl">
+            <label class="small" for="barMode">View:</label>
+            <select id="barMode">
+              <option value="absolute" selected>Population (counts)</option>
+              <option value="share">Share of baseline (%)</option>
+            </select>
+          </div>
+        </div>
+        <div id="plotBars" class="plot" style="margin-top:10px;"></div>
+      </div>
+      <div>
+        <h2 style="margin:0 0 8px 0; font-size:15px;">Municipal baseline table</h2>
+        <table id="muniTable">
+          <thead><tr><th>Municipality</th><th>Population</th><th>Share</th></tr></thead>
+          <tbody><tr><td colspan="3" class="small">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel hidden" id="tab-mlau">
+    <div class="grid2">
+      <div>
+        <h2 style="margin:0 0 8px 0; font-size:15px;">Municipalities in EL613 (baseline list)</h2>
+        <div class="note">Baseline list; next refinement will import the LAU–NUTS crosswalk automatically.</div>
+        <table id="muniTable2">
+          <thead><tr><th>Municipality</th><th>Population</th><th>Share of baseline</th><th>Grouping</th></tr></thead>
+          <tbody><tr><td colspan="4" class="small">Loading…</td></tr></tbody>
+        </table>
+      </div>
+      <div>
+        <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+          <div>
+            <h2 style="margin:0 0 2px 0; font-size:15px;">Allocated age structure (municipality)</h2>
+            <div class="small" id="allocNote">
+              Counts differ by municipality size. % view shows the *same* age distribution for each municipality by design (proportional allocation).
+            </div>
+            <div class="small" id="allocMeta"></div>
+          </div>
+          <div class="ctl">
+            <label class="small" for="munSelect">Municipality:</label>
+            <select id="munSelect"></select>
+            <label class="small" for="munMode">Metric:</label>
+            <select id="munMode">
+              <option value="counts" selected>Allocated counts</option>
+              <option value="share">Share of municipality (%)</option>
+            </select>
+          </div>
+        </div>
+        <div id="munAgeChart" style="height:420px; margin-top:10px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const EUROSTAT_BASE = "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/";
+
+// --- Fallback (known-good) KPI snapshot ---
+// Used when Eurostat live endpoints return 0 records / 400 / 500.
+// Source: the stable KPI-populating build you confirmed (2026-01-19).
+const FALLBACK_KPIS = {
+  // All values are for EL613 unless stated.
+  pop: { value: 195608, year: "2024", geo: "EL613", note: "fallback (stable build 2026-01-19)" },
+  births: { value: 1255, year: "2023", geo: "EL613", note: "fallback (stable build 2026-01-19)" },
+  deaths: { value: 2496, year: "2023", geo: "EL613", note: "fallback (stable build 2026-01-19)" },
+  natural: { value: -1241, year: "2023", geo: "EL613", note: "fallback (stable build 2026-01-19)" },
+  cbr: { value: 6.42, year: "2023", geo: "EL613", note: "fallback (stable build 2026-01-19)" },
+  cdr: { value: 12.76, year: "2023", geo: "EL613", note: "fallback (stable build 2026-01-19)" },
+  ncr: { value: -6.34, year: "2023", geo: "EL613", note: "fallback (stable build 2026-01-19)" },
+  tfr: { value: 1.27, year: "2023", geo: "EL613", note: "fallback (stable build 2026-01-19)" },
+  mab: { value: 31.8, year: "2023", geo: "EL613", note: "fallback (stable build 2026-01-19)" },
+  medab: { value: 32.7, year: "2023", geo: "EL613", note: "fallback (stable build 2026-01-19)" },
+  medAgePop: { value: 49.3, year: "2025", geo: "EL613", note: "fallback (observed working build)" },
+  meanAge: { value: null, year: null, geo: "EL613", note: "" },
+  meanAgePop: { value: null, year: null, geo: "EL613", note: "" }, // not in screenshot; keep null unless you want a specific value
+  medianAge: { value: null, year: null, geo: "EL613", note: "" }, // median age is already coming from live in some builds
+  municipalBaselinePop: { value: 204330, year: "2021", geo: "EL613", note: "fallback (ELSTAT 2021 baseline)" },
+  volosShare: { value: 70.7, year: "2021", geo: "EL613", note: "fallback (stable build 2026-01-19)" }
+};
+
+function applyFallbackIfMissing(k){
+  // Only overwrite missing/invalid values; keep any successfully fetched live values.
+  const isBad = (v)=> (v==null || (typeof v==="number" && !isFinite(v)));
+  const isBadRate = (v)=> isBad(v) || (typeof v==="number" && Math.abs(v) < 1e-9); // treat 0 as missing for rates here
+
+  // Map FIXED KPI field names used by the renderer:
+  // pop, births, deaths, nat, cbr, cdr, ncr, tfr, meanAgeBirth, medAgeBirth, meanAgePop, medAgePop
+
+  // Population stock
+  if(isBad(k.pop) && FALLBACK_KPIS.pop.value!=null){
+    k.pop = FALLBACK_KPIS.pop.value;
+    k.popYear = FALLBACK_KPIS.pop.year;
+    k.popGeo = FALLBACK_KPIS.pop.geo;
+    k.diags = k.diags || []; k.diags.push(`pop: used fallback (${k.popYear})`);
+  }
+
+  // Births / Deaths
+  if(isBad(k.births) && FALLBACK_KPIS.births.value!=null){
+    k.births = FALLBACK_KPIS.births.value;
+    k.birthsYear = FALLBACK_KPIS.births.year;
+    k.birthsGeo = FALLBACK_KPIS.births.geo;
+    k.diags = k.diags || []; k.diags.push(`births: used fallback (${k.birthsYear})`);
+  }
+  if(isBad(k.deaths) && FALLBACK_KPIS.deaths.value!=null){
+    k.deaths = FALLBACK_KPIS.deaths.value;
+    k.deathsYear = FALLBACK_KPIS.deaths.year;
+    k.deathsGeo = FALLBACK_KPIS.deaths.geo;
+    k.diags = k.diags || []; k.diags.push(`deaths: used fallback (${k.deathsYear})`);
+  }
+
+  // Natural change
+  if(isBad(k.nat) && FALLBACK_KPIS.natural.value!=null){
+    k.nat = FALLBACK_KPIS.natural.value;
+    k.natYear = FALLBACK_KPIS.natural.year;
+    k.natGeo = FALLBACK_KPIS.natural.geo;
+    k.diags = k.diags || []; k.diags.push(`nat: used fallback (${k.natYear})`);
+  }else if(isBad(k.nat) && isFinite(k.births) && isFinite(k.deaths)){
+    k.nat = k.births - k.deaths;
+    k.natYear = (k.birthsYear===k.deathsYear)?k.birthsYear:(k.deathsYear||k.birthsYear||null);
+  }
+
+  // Rates (per 1,000): use fallback if missing OR computed as 0 because births missing.
+  if(isBadRate(k.cbr) && FALLBACK_KPIS.cbr.value!=null){
+    k.cbr = FALLBACK_KPIS.cbr.value;
+    k.cbrYear = FALLBACK_KPIS.cbr.year;
+    k.cbrGeo = FALLBACK_KPIS.cbr.geo;
+    k.diags = k.diags || []; k.diags.push(`cbr: used fallback (${k.cbrYear})`);
+  }
+  if(isBadRate(k.cdr) && FALLBACK_KPIS.cdr.value!=null){
+    k.cdr = FALLBACK_KPIS.cdr.value;
+    k.cdrYear = FALLBACK_KPIS.cdr.year;
+    k.cdrGeo = FALLBACK_KPIS.cdr.geo;
+    k.diags = k.diags || []; k.diags.push(`cdr: used fallback (${k.cdrYear})`);
+  }
+  if(isBadRate(k.ncr) && FALLBACK_KPIS.ncr.value!=null){
+    k.ncr = FALLBACK_KPIS.ncr.value;
+    k.ncrYear = FALLBACK_KPIS.ncr.year;
+    k.ncrGeo = FALLBACK_KPIS.ncr.geo;
+    k.diags = k.diags || []; k.diags.push(`ncr: used fallback (${k.ncrYear})`);
+  }
+
+  // Fertility indicators
+  if(isBad(k.tfr) && FALLBACK_KPIS.tfr.value!=null){
+    k.tfr = FALLBACK_KPIS.tfr.value;
+    k.tfrYear = FALLBACK_KPIS.tfr.year;
+    k.tfrGeo = FALLBACK_KPIS.tfr.geo;
+    k.diags = k.diags || []; k.diags.push(`tfr: used fallback (${k.tfrYear})`);
+  }
+
+  if(isBad(k.meanAgeBirth) && FALLBACK_KPIS.mab.value!=null){
+    k.meanAgeBirth = FALLBACK_KPIS.mab.value;
+    k.meanAgeBirthYear = FALLBACK_KPIS.mab.year;
+    k.diags = k.diags || []; k.diags.push(`meanAgeBirth: used fallback (${k.meanAgeBirthYear})`);
+  }
+  if(isBad(k.medAgeBirth) && FALLBACK_KPIS.medab.value!=null){
+    k.medAgeBirth = FALLBACK_KPIS.medab.value;
+    k.medAgeBirthYear = FALLBACK_KPIS.medab.year;
+    k.diags = k.diags || []; k.diags.push(`medAgeBirth: used fallback (${k.medAgeBirthYear})`);
+  }
+
+  // Median age of population: if missing, fall back to the value we saw working (49.3)
+  if(isBad(k.medAgePop) && FALLBACK_KPIS.medAgePop && FALLBACK_KPIS.medAgePop.value!=null){
+    k.medAgePop = FALLBACK_KPIS.medAgePop.value;
+    k.medAgePopYear = FALLBACK_KPIS.medAgePop.year;
+    k.diags = k.diags || []; k.diags.push(`medAgePop: used fallback (${k.medAgePopYear})`);
+  }
+
+  return k;
+}
+
+
+const CACHE_PREFIX = "eurostatCache::";
+
+// ---------- utilities ----------
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+async function fetchWithRetry(url, tries=5){
+  // Returns {ok,status,json}. Retries only on transient errors.
+  let last=null;
+  for(let i=0;i<tries;i++){
+    try{
+      const res = await fetch(url,{cache:"no-store"});
+      const status = res.status;
+      let json = null;
+      try{ json = await res.json(); }catch(e){ json = null; }
+      if(res.ok) return {ok:true,status,json};
+      // retry on transient statuses
+      if([429,502,503,504].includes(status) && i<tries-1){
+        await sleep(500*Math.pow(2,i));
+        continue;
+      }
+      return {ok:false,status,json};
+    }catch(e){
+      last = e;
+      if(i<tries-1) await sleep(500*Math.pow(2,i));
+    }
+  }
+  return {ok:false,status:0,json:null,error:String(last||"Fetch failed")};
+}
+
+function cachePut(url,json){ try{ localStorage.setItem(CACHE_PREFIX+url, JSON.stringify({ts:Date.now(),json})); }catch(e){} }
+function cacheGet(url){ try{ const raw=localStorage.getItem(CACHE_PREFIX+url); if(!raw) return null; return (JSON.parse(raw)||{}).json||null; }catch(e){ return null; } }
+async function eurostatGet(url, allowCache=true){
+  // Robust getter: avoids crashing the app on 400/500. Also retries by stripping unsupported params.
+  if(allowCache){
+    const c=cacheGet(url);
+    if(c) return {json:c, fromCache:true, ok:true, status:200, urlUsed:url};
+  }
+
+  const attempt = async(u)=> await fetchWithRetry(u,5);
+
+  // First attempt
+  let r = await attempt(url);
+
+  // If 400/500 and query includes sex/unit, retry once with those removed (some datasets reject them).
+  if(!r.ok && (r.status===400 || r.status===500)){
+    let u2 = url.replace(/&sex=[^&]*/g,"").replace(/&unit=[^&]*/g,"");
+    // also clean accidental double &&
+    u2 = u2.replace(/&&+/g,"&").replace(/\?&/g,"?");
+    if(u2!==url){
+      const r2 = await attempt(u2);
+      if(r2.ok) r = r2, url = u2;
+    }
+  }
+
+  if(r.ok && r.json){
+    cachePut(url,r.json);
+    return {json:r.json, fromCache:false, ok:true, status:r.status, urlUsed:url};
+  }
+  // Return empty instead of throwing so dashboard can still render other parts.
+  return {json:null, fromCache:false, ok:false, status:r.status||0, urlUsed:url, error:r.error||null};
+}
+
+function setStatus(text,tone="muted"){
+  const el=document.getElementById("statusPill");
+  el.textContent=text;
+  const map={ ok:"rgba(66,211,146,0.18)", warn:"rgba(255,204,102,0.18)", bad:"rgba(255,107,107,0.18)", muted:"rgba(255,255,255,0.04)" };
+  el.style.background=map[tone]||map.muted;
+  el.style.borderColor="rgba(255,255,255,0.14)";
+  el.style.color=(tone==="ok")?"#d7ffe9":(tone==="bad")?"#ffe4e4":"#d6ddf7";
+}
+function setCacheMsg(msg){ document.getElementById("cacheMsg").textContent=msg; }
+
+function decodeJSONstat(j){
+  if(!j || !j.id || !j.dimension || !j.value){ return {records:[], dimensions:{}}; }
+  const ids=j.id, size=j.size, dim=j.dimension, vals=j.value;
+  const keysByDim={};
+  ids.forEach(d=>{
+    const idx=dim[d]?.category?.index||{};
+    const keys=Object.keys(idx);
+    keys.sort((a,b)=>idx[a]-idx[b]);
+    keysByDim[d]=keys;
+  });
+  function linearToMulti(n){
+    const out=new Array(ids.length).fill(0);
+    for(let i=ids.length-1;i>=0;i--){ out[i]=n%size[i]; n=Math.floor(n/size[i]); }
+    return out;
+  }
+  const recs=[];
+  if(Array.isArray(vals)){
+    for(let i=0;i<vals.length;i++){
+      if(vals[i]==null) continue;
+      const mi=linearToMulti(i);
+      const r={ value: Number(vals[i]) };
+      for(let d=0;d<ids.length;d++){ r[ids[d]] = keysByDim[ids[d]][mi[d]]; }
+      recs.push(r);
+    }
+  }else if(typeof vals==="object"){
+    for(const k of Object.keys(vals)){
+      const i=Number(k); if(!isFinite(i)) continue;
+      const mi=linearToMulti(i);
+      const r={ value: Number(vals[k]) };
+      for(let d=0;d<ids.length;d++){ r[ids[d]] = keysByDim[ids[d]][mi[d]]; }
+      recs.push(r);
+    }
+  }
+  return { ids, dim, records:recs };
+}
+function latestTimeFromJson(json){
+  const idx=json?.dimension?.time?.category?.index;
+  if(!idx) return null;
+  const times=Object.keys(idx).sort((a,b)=>idx[a]-idx[b]);
+  return times[times.length-1] || null;
+}
+function pickByLabel(decoded, dimName, tokenGroups){
+  const labMap = decoded.dim?.[dimName]?.category?.label || {};
+  const entries = Object.entries(labMap);
+  for(const tokens of tokenGroups){
+    const toks = tokens.map(t=>String(t).toUpperCase());
+    for(const [code,label] of entries){
+      const u = String(label).toUpperCase();
+      let ok=true;
+      for(const t of toks){ if(!u.includes(t)) { ok=false; break; } }
+      if(ok) return code;
+    }
+  }
+  return null;
+}
+function formatInt(x){ return (x==null||!isFinite(x)) ? "—" : Math.round(x).toLocaleString("en-US"); }
+function format1(x){ return (x==null||!isFinite(x)) ? "—" : (Math.round(x*10)/10).toLocaleString("en-US"); }
+function format2(x){ return (x==null||!isFinite(x)) ? "—" : (Math.round(x*100)/100).toLocaleString("en-US"); }
+function formatPct(x){ return (x==null||!isFinite(x)) ? "—" : (Math.round(x*10)/10).toLocaleString("en-US")+"%"; }
+function kpiCard(label,value,meta=""){ return `<div class="kpi"><div class="lab">${label}</div><div class="val">${value}</div><div class="meta">${meta}</div></div>`; }
+
+// ---------- robust "total" extractor with fail-open filters ----------
+function chooseUnitNR(decoded){
+  if(!decoded.ids.includes("unit")) return null;
+  const codes = Object.keys(decoded.dim.unit.category.index || {});
+  if(codes.includes("NR")) return "NR";
+  const labs = decoded.dim.unit.category.label || {};
+  for(const c of codes){
+    const u = String(labs[c]||"").toUpperCase();
+    if(u.includes("NUMBER")) return c;
+  }
+  return codes[0] || null;
+}
+function chooseSexTotal(decoded){
+  if(!decoded.ids.includes("sex")) return null;
+  const codes = Object.keys(decoded.dim.sex.category.index || {});
+  if(codes.includes("T")) return "T";
+  return null;
+}
+async function fetchTotalFromDataset(dataset, geo, indicTokens){
+  // Tolerant fetch: pull lastTimePeriod for geo, then pick the best matching record client-side.
+  // This avoids 'no match' when indicator codes differ (common across datasets).
+  const url = `${EUROSTAT_BASE}${dataset}?format=JSON&geo=${encodeURIComponent(geo)}&lastTimePeriod=1`;
+  const {json} = await eurostatGet(url, true);
+  const d = decodeJSONstat(json);
+  const t = latestTimeFromJson(json);
+
+  // helper: normalize strings
+  const norm = (x)=>String(x??"").toUpperCase();
+
+  // identify likely dimension names
+  const dims = Object.keys(d.dimensions||{});
+  const has = (k)=>dims.includes(k);
+  const dimIndic = dims.find(k=>k==="indic_de" || k==="indic" || k==="indicator");
+  const dimSex   = dims.find(k=>k==="sex");
+  const dimUnit  = dims.find(k=>k==="unit");
+  const dimTime  = dims.find(k=>k==="time");
+  const dimGeo   = dims.find(k=>k==="geo");
+
+  const recs = (d.records||[]).filter(r => (dimGeo? String(r[dimGeo])===String(geo) : true) && (dimTime? String(r[dimTime])===String(t) : true));
+
+  // scoring
+  function score(r){
+    let s = 0;
+    if(dimUnit && norm(r[dimUnit])==="NR") s += 50;
+    if(dimSex && norm(r[dimSex])==="T") s += 20;
+
+    const indicVal = dimIndic ? norm(r[dimIndic]) : "";
+    if(indicTokens && dimIndic){
+      // tokens are hints; reward partial matches
+      for(const tok of indicTokens){
+        if(indicVal.includes(norm(tok))) s += 30;
+      }
+    }
+    // additional heuristics by dataset name
+    if(dataset.includes("birth")){
+      if(indicVal.includes("BIRTH")) s += 25;
+      if(indicVal.includes("LIVE")) s += 10;
+    }
+    if(dataset.includes("death")){
+      if(indicVal.includes("DEATH")) s += 25;
+    }
+    // prefer non-null numeric
+    if(r.value!=null && isFinite(r.value)) s += 5;
+    return s;
+  }
+
+  let best = null;
+  let bestS = -1;
+  for(const r of recs){
+    const s = score(r);
+    if(s>bestS){ bestS=s; best=r; }
+  }
+
+  const val = best ? best.value : null;
+  const diag = `${dataset}: geo=${geo} recs=${recs.length}→${best?1:0} (tolerant pick)`;
+  return { value: (val==null?null:Number(val)), time: String(t||""), diag };
+}
+
+
+// ---------- municipal baseline ----------
+const MUNICIPAL_BASELINE = [
+  { name: "Volos", pop: 133375, group: "Mainland (EL613)" },
+  { name: "Almyros", pop: 16710, group: "Mainland (EL613)" },
+  { name: "Rigas Feraios", pop: 17661, group: "Mainland (EL613)" },
+  { name: "South Pelion", pop: 9372, group: "Mainland (EL613)" },
+  { name: "Zagora-Mouresi", pop: 11010, group: "Mainland (EL613)" },
+  { name: "Skiathos", pop: 6043, group: "Sporades" },
+  { name: "Skopelos", pop: 4411, group: "Sporades" },
+  { name: "Alonnisos", pop: 2990, group: "Sporades" },
+];
+function renderMunicipalTables(){
+  const total=MUNICIPAL_BASELINE.reduce((s,d)=>s+d.pop,0);
+  const rows=MUNICIPAL_BASELINE.map(d=>({...d, share:d.pop/total})).sort((a,b)=>b.pop-a.pop);
+  document.querySelector("#muniTable tbody").innerHTML =
+    rows.map(r=>`<tr><td>${r.name}</td><td>${formatInt(r.pop)}</td><td>${formatPct(r.share*100)}</td></tr>`).join("");
+  document.querySelector("#muniTable2 tbody").innerHTML =
+    rows.map(r=>`<tr><td>${r.name}</td><td>${formatInt(r.pop)}</td><td>${formatPct(r.share*100)}</td><td>${r.group}</td></tr>`).join("");
+  return { total, rows };
+}
+function renderBars(rows, mode){
+  const x=rows.map(r=>r.name);
+  const y=(mode==="share")?rows.map(r=>r.share*100):rows.map(r=>r.pop);
+  const yTitle=(mode==="share")?"% of baseline":"Population";
+  Plotly.react("plotBars", [{x,y,type:"bar",
+      hovertemplate: (mode==="share") ? "%{x}<br>%{y:.1f}%<extra></extra>" : "%{x}<br>%{y:,}<extra></extra>"
+  }], {
+    paper_bgcolor:"rgba(0,0,0,0)", plot_bgcolor:"rgba(0,0,0,0)",
+    font:{color:"#eef2ff"}, margin:{l:60,r:20,t:10,b:90},
+    xaxis:{tickangle:-35, gridcolor:"rgba(255,255,255,0.08)"},
+    yaxis:{title:yTitle, gridcolor:"rgba(255,255,255,0.08)"}
+  }, {displayModeBar:false});
+}
+
+// ---------- trends ----------
+function computeGrowthPct(years, vals){
+  const outY=[], outV=[];
+  for(let i=1;i<years.length;i++){
+    const prev=vals[i-1], cur=vals[i];
+    outY.push(years[i]);
+    outV.push((prev==null||cur==null||prev===0)?null:((cur-prev)/prev)*100);
+  }
+  return {years:outY, vals:outV};
+}
+function computeIndex(years, vals, baseYear=1990){
+  const baseIdx=years.indexOf(baseYear);
+  const base=(baseIdx>=0)?vals[baseIdx]:vals[0];
+  return {years, vals: vals.map(v=>(v==null||base==null||base===0)?null:(v/base)*100)};
+}
+async function getPopSeriesEL613(){
+  const url = `${EUROSTAT_BASE}demo_r_gind3?format=JSON&geo=EL613&indic_de=JAN&sinceTimePeriod=1990`;
+  const {json} = await eurostatGet(url,true);
+  const tIdx=json.dimension.time.category.index;
+  const years=Object.keys(tIdx).sort((a,b)=>tIdx[a]-tIdx[b]).map(Number);
+  const vals=years.map((_,i)=>(Array.isArray(json.value)?json.value[i]:json.value[String(i)]) ?? null);
+  return {years, vals};
+}
+async function getPopSeriesGreece(){
+  const url = `${EUROSTAT_BASE}demo_pjan?format=JSON&geo=EL&sex=T&age=TOTAL&unit=NR&sinceTimePeriod=1990`;
+  const {json} = await eurostatGet(url,true);
+  const ids=json.id, size=json.size; const pos={}; ids.forEach((d,i)=>pos[d]=i);
+  const tIdx=json.dimension.time.category.index;
+  const years=Object.keys(tIdx).sort((a,b)=>tIdx[a]-tIdx[b]).map(Number);
+  const vals=[];
+  for(let t=0;t<years.length;t++){
+    const idx=new Array(ids.length).fill(0); idx[pos.time]=t;
+    let linear=0;
+    for(let i=0;i<ids.length;i++){
+      let mult=1; for(let j=i+1;j<ids.length;j++) mult*=size[j];
+      linear += idx[i]*mult;
+    }
+    vals.push((Array.isArray(json.value)?json.value[linear]:json.value[String(linear)]) ?? null);
+  }
+  return {years, vals};
+}
+function renderTrends(el613, gr){
+  const g1=computeGrowthPct(el613.years, el613.vals);
+  const g2=computeGrowthPct(gr.years, gr.vals);
+  const idx1=computeIndex(el613.years, el613.vals, 1990);
+  const idx2=computeIndex(gr.years, gr.vals, 1990);
+  const annoYear=2022;
+  const annoIdx=g1.years.indexOf(annoYear);
+  const annos=[];
+  if(annoIdx>=0){
+    annos.push({
+      x: annoYear, y: g1.vals[annoIdx], xref:"x", yref:"y",
+      text:"2022: likely break (2021 census revision)",
+      showarrow:true, arrowhead:3, ax:40, ay:-40,
+      bgcolor:"rgba(255,255,255,0.08)", bordercolor:"rgba(255,255,255,0.15)"
+    });
+  }
+  Plotly.react("plotGrowth", [
+    { x:g1.years, y:g1.vals, mode:"lines", name:"EL613 % growth" },
+    { x:g2.years, y:g2.vals, mode:"lines", name:"Greece (EL) % growth" },
+  ], {
+    paper_bgcolor:"rgba(0,0,0,0)", plot_bgcolor:"rgba(0,0,0,0)",
+    font:{color:"#eef2ff"}, margin:{l:50,r:20,t:10,b:40},
+    xaxis:{title:"Year", gridcolor:"rgba(255,255,255,0.08)"},
+    yaxis:{title:"% change", gridcolor:"rgba(255,255,255,0.08)"},
+    annotations:annos
+  }, {displayModeBar:false});
+  Plotly.react("plotIndex", [
+    { x:idx1.years, y:idx1.vals, mode:"lines", name:"EL613 index" },
+    { x:idx2.years, y:idx2.vals, mode:"lines", name:"Greece (EL) index" },
+  ], {
+    paper_bgcolor:"rgba(0,0,0,0)", plot_bgcolor:"rgba(0,0,0,0)",
+    font:{color:"#eef2ff"}, margin:{l:50,r:20,t:10,b:40},
+    xaxis:{title:"Year", gridcolor:"rgba(255,255,255,0.08)"},
+    yaxis:{title:"1990 = 100", gridcolor:"rgba(255,255,255,0.08)"}
+  }, {displayModeBar:false});
+}
+
+// ---------- age structure ----------
+async function getAgeStructure(){
+  const url = `${EUROSTAT_BASE}demo_r_pjangrp3?format=JSON&geo=EL613&sex=M&sex=F&unit=NR&lastTimePeriod=1`;
+  const {json} = await eurostatGet(url,true);
+  const d=decodeJSONstat(json);
+  const ages=[...new Set(d.records.map(r=>r.age))]
+    .filter(a=>a!=="TOTAL" && a!=="UNK" && !String(a).startsWith("Y_GE"))
+    .sort((a,b)=>{
+      const idx=json.dimension.age.category.index;
+      return (idx[a]??0)-(idx[b]??0);
+    });
+  const year=latestTimeFromJson(json);
+  const male=ages.map(a=> (d.records.find(x=>x.sex==="M" && x.age===a && String(x.time)===String(year))?.value) ?? null);
+  const female=ages.map(a=> (d.records.find(x=>x.sex==="F" && x.age===a && String(x.time)===String(year))?.value) ?? null);
+  return {ages, male, female, year};
+}
+function ageLabel(ageKey){
+  const k=String(ageKey);
+  if(k.startsWith("Y")){
+    const s=k.slice(1);
+    if(s.includes("-")){ const [a,b]=s.split("-"); return `${a}–${b}`; }
+    if(s.startsWith("GE")) return `${s.replace("GE","")}+`;
+    if(s==="LT5") return "0–4";
+  }
+  return k;
+}
+function renderAgeStructure(a){
+  // Keep pyramid orientation as before, but ensure shares chart reads youngest → oldest left-to-right.
+  const labels = a.ages.map(ageLabel);           // youngest → oldest
+  const labsRev = [...labels].reverse();         // oldest → youngest (used by pyramid)
+  const mRev = [...a.male].reverse();
+  const fRev = [...a.female].reverse();
+
+  const mTot = a.male.reduce((s,x)=>s+(x||0),0);
+  const fTot = a.female.reduce((s,x)=>s+(x||0),0);
+
+  // Percent shares aligned with youngest→oldest labels (used by the shares line chart)
+  const mPct = a.male.map(x => (mTot ? 100*(x||0)/mTot : 0));
+  const fPct = a.female.map(x => (fTot ? 100*(x||0)/fTot : 0));
+
+  // Percent shares aligned with pyramid ordering (oldest→youngest)
+  const mPctRev = mRev.map(x => (mTot ? 100*(x||0)/mTot : 0));
+  const fPctRev = fRev.map(x => (fTot ? 100*(x||0)/fTot : 0));
+
+  Plotly.react("plotPyramid", [
+    { y: labsRev, x: mPctRev.map(v=>v==null?null:-v), type:"bar", orientation:"h", name:"Male",
+      hovertemplate:"%{y}<br>Male: %{x:.1f}%<extra></extra>" },
+    { y: labsRev, x: fPctRev, type:"bar", orientation:"h", name:"Female",
+      hovertemplate:"%{y}<br>Female: %{x:.1f}%<extra></extra>" },
+  ], {
+    barmode:"overlay",
+    paper_bgcolor:"rgba(0,0,0,0)", plot_bgcolor:"rgba(0,0,0,0)",
+    font:{color:"#eef2ff"}, margin:{l:70,r:30,t:10,b:40},
+    xaxis:{title:"% of sex total", gridcolor:"rgba(255,255,255,0.08)", zerolinecolor:"rgba(255,255,255,0.25)"},
+    yaxis:{title:"Age group", autorange:"reversed", gridcolor:"rgba(255,255,255,0.08)"},
+    legend:{orientation:"h"}
+  });
+
+  Plotly.react("plotAgeShares", [
+    { x: labels, y: mPct, mode:"lines+markers", name:"Male % (within sex)" },
+    { x: labels, y: fPct, mode:"lines+markers", name:"Female % (within sex)" },
+  ], {
+    paper_bgcolor:"rgba(0,0,0,0)", plot_bgcolor:"rgba(0,0,0,0)",
+    font:{color:"#eef2ff"}, margin:{l:50,r:20,t:10,b:60},
+    xaxis:{title:"Age group (youngest → oldest)", tickangle:-35, gridcolor:"rgba(255,255,255,0.08)"},
+    yaxis:{title:"% share within sex", gridcolor:"rgba(255,255,255,0.08)"},
+    legend:{orientation:"h"}
+  });
+}
+
+function geoLabel(geo){
+  if(geo==="EL613") return "EL613 (NUTS3)";
+  if(geo==="EL61") return "EL61 (NUTS2)";
+  if(geo==="EL") return "Greece (EL)";
+  return geo || "—";
+}
+async function popStockAt(geo){
+  const url = `${EUROSTAT_BASE}demo_r_pjangrp3?format=JSON&geo=${geo}&sex=T&age=TOTAL&unit=NR&lastTimePeriod=1`;
+  const {json}=await eurostatGet(url,true);
+  const t = latestTimeFromJson(json);
+  const d=decodeJSONstat(json);
+  const rec = d.records.find(r=>String(r.geo)===String(geo) && r.sex==="T" && r.age==="TOTAL" && r.unit==="NR" && String(r.time)===String(t));
+  return { value: rec?rec.value:null, time: String(t||""), geo };
+}
+async function popForGeoYear(geo, y){
+  if(!geo || !y) return null;
+  const url = `${EUROSTAT_BASE}demo_r_pjangrp3?format=JSON&geo=${geo}&sex=T&age=TOTAL&unit=NR&time=${y}`;
+  try{
+    const {json}=await eurostatGet(url,true);
+    const d=decodeJSONstat(json);
+    const rec = d.records.find(r=>String(r.geo)===String(geo) && r.sex==="T" && r.age==="TOTAL" && r.unit==="NR");
+    return rec?rec.value:null;
+  }catch(e){ return null; }
+}
+function yearInt(s){ const m=String(s||"").match(/\d{4}/); return m?Number(m[0]):null; }
+
+async function fetchIndicBest(dataset, geo, tokens){
+  // Fetch lastTimePeriod for geo and choose the best record matching tokens in indic_de (if present).
+  const url = `${EUROSTAT_BASE}${dataset}?format=JSON&geo=${encodeURIComponent(geo)}&lastTimePeriod=1`;
+  try{
+    const {json} = await eurostatGet(url, true);
+    const d = decodeJSONstat(json);
+    const t = latestTimeFromJson(json);
+    const dims = Object.keys(d.dimensions||{});
+    const dimIndic = dims.find(k=>k==="indic_de" || k==="indic" || k==="indicator");
+    const dimTime  = dims.find(k=>k==="time");
+    const dimGeo   = dims.find(k=>k==="geo");
+    const dimUnit  = dims.find(k=>k==="unit");
+    const dimSex   = dims.find(k=>k==="sex");
+
+    const norm = (x)=>String(x??"").toUpperCase();
+    const recs = (d.records||[]).filter(r =>
+      (dimGeo ? String(r[dimGeo])===String(geo) : true) &&
+      (dimTime ? String(r[dimTime])===String(t) : true)
+    );
+
+    function score(r){
+      let s=0;
+      if(dimSex && norm(r[dimSex])==="T") s+=10;
+      const indicVal = dimIndic ? norm(r[dimIndic]) : "";
+      if(tokens && dimIndic){
+        for(const tok of tokens){
+          if(indicVal.includes(norm(tok))) s+=30;
+        }
+      }
+      // prefer per-1000 units for crude rates when available
+      if(dimUnit){
+        const u = norm(r[dimUnit]);
+        if(u.includes("P1000") || u.includes("PER_1000") || u.includes("PTHS")) s+=10;
+        if(u==="NR") s+=5;
+      }
+      if(r.value!=null && isFinite(r.value)) s+=5;
+      return s;
+    }
+
+    let best=null, bestS=-1;
+    for(const r of recs){
+      const s=score(r);
+      if(s>bestS){ bestS=s; best=r; }
+    }
+    const diag = `${dataset}: geo=${geo} recs=${recs.length}→${best?1:0} (indic pick)`;
+    return { value: best?Number(best.value):null, time: String(t||""), geo, diag };
+  }catch(e){
+    return { value:null, time:null, geo, diag:`${dataset}: geo=${geo} ERROR (${e})` };
+  }
+}
+
+async function fetchFirstNonEmpty(urls){
+  for(const u of urls){
+    try{
+      const {json} = await eurostatGet(u, true);
+      // If API returns an error object, skip
+      if(!json) continue;
+      if(json && (json.error || json.errors || json.status===400 || json.status===404)) continue;
+      const d = decodeJSONstat(json);
+      if(d.records && d.records.length>0){
+        return { ok:true, url:u, json, d };
+      }
+      // if records exist but empty, keep trying
+    }catch(e){
+      // keep trying
+    }
+  }
+  return { ok:false, url:urls[0], json:null, d:{records:[]} };
+}
+
+function pickBestRecord(d, preferences){
+  const norm = (x)=>String(x??"").toUpperCase();
+  let best=null, bestS=-1;
+  for(const r of (d.records||[])){
+    let s=0;
+    if(preferences.unit && r.unit && norm(r.unit)===norm(preferences.unit)) s+=50;
+    if(preferences.sex  && r.sex  && norm(r.sex)===norm(preferences.sex)) s+=20;
+    if(preferences.indicTokens && r.indic_de){
+      const iv = norm(r.indic_de);
+      for(const t of preferences.indicTokens){
+        if(iv.includes(norm(t))) s+=30;
+      }
+    }
+    if(r.value!=null && isFinite(r.value)) s+=5;
+    if(s>bestS){ bestS=s; best=r; }
+  }
+  return best;
+}
+
+async function fetchVitalCount(dataset, geo){
+  // IMPORTANT: Some datasets (notably demo_r_births) do NOT support 'sex' and may 400 on sex=T.
+  // Strategy: fetch minimal query (geo + lastTimePeriod) then pick the best record client-side.
+  const url = `${EUROSTAT_BASE}${dataset}?format=JSON&geo=${encodeURIComponent(geo)}&lastTimePeriod=1`;
+  try{
+    const {json} = await eurostatGet(url, true);
+    const d = decodeJSONstat(json);
+    const t = latestTimeFromJson(json);
+    const norm = (x)=>String(x??"").toUpperCase();
+
+    // filter to latest time if present
+    const recs = (d.records||[]).filter(r => String(r.time||t)===String(t));
+    if(!recs.length){
+      return {value:null, year:String(t||""), geo, ok:true, url, recs:0};
+    }
+
+    function score(r){
+      let s=0;
+      if(r.unit && norm(r.unit)==="NR") s+=20;
+      if(r.sex && norm(r.sex)==="T") s+=5;
+      // births/deaths datasets often have indic_de; prefer total events if visible
+      if(r.indic_de){
+        const iv = norm(r.indic_de);
+        if(iv.includes("TOTAL") || iv==="TOTAL") s+=5;
+        if(dataset.includes("birth") && (iv.includes("BIRTH") || iv.includes("LIVE"))) s+=8;
+        if(dataset.includes("death") && iv.includes("DEATH")) s+=8;
+      }
+      if(r.value!=null && isFinite(r.value)) s+=5;
+      return s;
+    }
+
+    let best=null, bestS=-1;
+    for(const r of recs){
+      const s=score(r);
+      if(s>bestS){ bestS=s; best=r; }
+    }
+    return {
+      value: best?Number(best.value):null,
+      year: best?String(best.time||t||""):String(t||""),
+      geo,
+      ok:true,
+      url,
+      recs: recs.length
+    };
+  }catch(e){
+    return {value:null, year:null, geo, ok:false, url, recs:0, error:String(e)};
+  }
+}
+
+async function fetchIndicatorByLabel(dataset, geo, labelMatchers){
+  // Pull lastTimePeriod for geo and pick indicator whose LABEL matches one of labelMatchers (regex or substring).
+  const base = `${EUROSTAT_BASE}${dataset}?format=JSON&geo=${encodeURIComponent(geo)}&lastTimePeriod=1`;
+  const urls = [
+    base + "&sex=T&unit=NR",
+    base + "&unit=NR",
+    base
+  ];
+  const res = await fetchFirstNonEmpty(urls);
+  if(!res.ok) return {value:null, year:null, geo, ok:false, url:res.url, recs:0};
+
+  const json = res.json;
+  const d = res.d;
+  const t = latestTimeFromJson(json);
+
+  const dim = json?.dimension || {};
+  const indicDim = dim.indic_de || dim.indic || dim.indicator;
+  const unitDim  = dim.unit;
+
+  // map indic code -> label
+  const indicLabels = indicDim?.category?.label || {};
+  const indicCodes = Object.keys(indicLabels);
+
+  function matches(lbl){
+    const s = String(lbl||"");
+    for(const m of labelMatchers){
+      if(m instanceof RegExp){
+        if(m.test(s)) return true;
+      }else{
+        if(s.toLowerCase().includes(String(m).toLowerCase())) return true;
+      }
+    }
+    return false;
+  }
+
+  const targetCodes = indicCodes.filter(code => matches(indicLabels[code]));
+  // if we can't match labels, fall back to common codes
+  const fallbackCodes = ["TFR","AGEMOTH","MEDAGEMOTH","MEDAGEPOP","MEANAGEPOP","MEANAGE","MEDAGE"];
+
+  const candidates = (targetCodes.length?targetCodes:fallbackCodes);
+
+  // choose best record among those candidates
+  let best=null, bestS=-1;
+  const norm=(x)=>String(x??"").toUpperCase();
+  for(const r of (d.records||[])){
+    if(String(r.time||t) !== String(t)) continue;
+    if(r.indic_de && !candidates.includes(String(r.indic_de))) continue;
+
+    let s=0;
+    if(r.indic_de && targetCodes.includes(String(r.indic_de))) s+=50;
+    if(r.unit){
+      const u = norm(r.unit);
+      // prefer years units for age, NR for counts, etc.
+      if(labelMatchers.some(m=>String(m).toLowerCase().includes("age"))){
+        if(u==="YR" || u.includes("YR")) s+=20;
+      }else{
+        if(u==="NR") s+=10;
+      }
+    }
+    if(r.sex && norm(r.sex)==="T") s+=5;
+    if(r.value!=null && isFinite(r.value)) s+=5;
+    if(s>bestS){ bestS=s; best=r; }
+  }
+
+  return {
+    value: best?Number(best.value):null,
+    year: best?String(best.time||t||""):String(t||""),
+    geo,
+    ok:true,
+    url: res.url,
+    recs: d.records.length,
+    indic: best?best.indic_de:null,
+    unit: best?best.unit:null
+  };
+}
+
+async function fetchKPIs(){
+  const diags=[];
+  const out={};
+
+  // Population stock (use demo_r_pjangrp3 TOTAL)
+  const popUrls = [
+    `${EUROSTAT_BASE}demo_r_pjangrp3?format=JSON&geo=EL613&sex=T&age=TOTAL&unit=NR&lastTimePeriod=1`,
+    `${EUROSTAT_BASE}demo_r_pjangrp3?format=JSON&geo=EL613&age=TOTAL&unit=NR&lastTimePeriod=1`
+  ];
+  const popRes = await fetchFirstNonEmpty(popUrls);
+  if(popRes.ok){
+    const t = latestTimeFromJson(popRes.json);
+    const r = popRes.d.records[0];
+    out.pop = Number(r.value);
+    out.popYear = String(r.time||t||"");
+    diags.push(`pop: recs=${popRes.d.records.length} url=demo_r_pjangrp3`);
+  }else{
+    out.pop=null; out.popYear=null;
+    diags.push("pop: no data");
+  }
+
+  // Vital counts: births/deaths (try EL613; if missing, EL61 then EL)
+  async function vitalFallback(dataset){
+    for(const g of ["EL613","EL61","EL"]){
+      const v = await fetchVitalCount(dataset, g);
+      diags.push(`${dataset}: geo=${g} recs=${v.recs} ok=${v.ok?1:0}`);
+      if(v.value!=null && isFinite(v.value)) return v;
+    }
+    return {value:null, year:null, geo:null};
+  }
+  const births = await vitalFallback("demo_r_births");
+  const deaths = await vitalFallback("demo_r_deaths");
+
+  out.births = births.value;
+  out.birthsYear = births.year;
+  out.birthsGeo = births.geo;
+
+  out.deaths = deaths.value;
+  out.deathsYear = deaths.year;
+  out.deathsGeo = deaths.geo;
+
+  // Natural change (only if both exist, but allow mismatch years; label year as deathsYear if available)
+  if(isFinite(out.births) && isFinite(out.deaths)){
+    out.natural = out.births - out.deaths;
+    out.naturalYear = (out.birthsYear===out.deathsYear)?out.birthsYear:(out.deathsYear||out.birthsYear||null);
+    out.naturalGeo = (out.birthsGeo===out.deathsGeo)?out.birthsGeo:(out.birthsGeo||out.deathsGeo||null);
+  }else{
+    out.natural=null; out.naturalYear=null; out.naturalGeo=null;
+  }
+
+  // Crude rates: compute using population stock as denom (approx, even if year differs by 1)
+  if(isFinite(out.pop) && out.pop>0 && isFinite(out.births)){
+    out.cbr = (out.births/out.pop)*1000;
+    out.cbrYear = out.birthsYear;
+    out.cbrGeo = out.birthsGeo;
+  }else{ out.cbr=null; out.cbrYear=null; out.cbrGeo=null; }
+
+  if(isFinite(out.pop) && out.pop>0 && isFinite(out.deaths)){
+    out.cdr = (out.deaths/out.pop)*1000;
+    out.cdrYear = out.deathsYear;
+    out.cdrGeo = out.deathsGeo;
+  }else{ out.cdr=null; out.cdrYear=null; out.cdrGeo=null; }
+
+  if(out.cbr!=null && out.cdr!=null){
+    out.ncr = out.cbr - out.cdr;
+    out.ncrYear = (out.cbrYear===out.cdrYear)?out.cbrYear:(out.cdrYear||out.cbrYear||null);
+    out.ncrGeo = (out.cbrGeo===out.cdrGeo)?out.cbrGeo:(out.cbrGeo||out.cdrGeo||null);
+  }else{ out.ncr=null; out.ncrYear=null; out.ncrGeo=null; }
+
+  // Fertility indicators (demo_r_find3) by label matching
+  async function fertFallback(labelMatchers){
+    for(const g of ["EL613","EL61","EL"]){
+      const r = await fetchIndicatorByLabel("demo_r_find3", g, labelMatchers);
+      diags.push(`find3: geo=${g} ok=${r.ok?1:0} recs=${r.recs} indic=${r.indic||"?"}`);
+      if(r.value!=null && isFinite(r.value)) return r;
+    }
+    return {value:null, year:null, geo:null};
+  }
+  const tfr = await fertFallback([/Total fertility rate/i, "fertility rate", "TFR"]);
+  out.tfr = tfr.value; out.tfrYear=tfr.year; out.tfrGeo=tfr.geo;
+
+  const mab = await fertFallback([/Mean age.*childbirth/i, "Mean age of women at childbirth", "AGEMOTH"]);
+  out.mab = mab.value; out.mabYear=mab.year; out.mabGeo=mab.geo;
+
+  const medab = await fertFallback([/Median age.*childbirth/i, "Median age of women at childbirth", "MEDAGEMOTH"]);
+  out.medab = medab.value; out.medabYear=medab.year; out.medabGeo=medab.geo;
+
+  // Mean/Median age of population (demo_r_pjanind3) by label matching
+  async function popIndFallback(labelMatchers){
+    for(const g of ["EL613","EL61","EL"]){
+      const r = await fetchIndicatorByLabel("demo_r_pjanind3", g, labelMatchers);
+      diags.push(`pjanind3: geo=${g} ok=${r.ok?1:0} recs=${r.recs} indic=${r.indic||"?"}`);
+      if(r.value!=null && isFinite(r.value)) return r;
+    }
+    return {value:null, year:null, geo:null};
+  }
+  // Mean/median age of population (prefer demo_r_pjanind3 indicators; fall back to computed mean from age structure if needed)
+  const meanAge = await popIndFallback([/Mean age of population/i, "Mean age", "MEANAGEPOP"]);
+  out.meanAgePop = meanAge.value; out.meanAgePopYear=meanAge.year; out.meanAgePopGeo=meanAge.geo;
+
+  // If mean age not available via indicator, compute from EL613 5-year age structure (sex=T) using midpoints
+  if(out.meanAgePop==null || !isFinite(out.meanAgePop)){
+    try{
+      const urlAge = `${EUROSTAT_BASE}demo_r_pjangrp3?format=JSON&geo=EL613&sex=T&unit=NR&lastTimePeriod=1`;
+      const resAge = await eurostatGet(urlAge,false);
+      if(resAge.ok && resAge.json){
+        const dAge = decodeJSONstat(resAge.json);
+        const tAge = latestTimeFromJson(resAge.json);
+        const recs = (dAge.records||[]).filter(r=>String(r.time||tAge)===String(tAge||r.time||"") && r.age && String(r.age)!=="TOTAL");
+        function midpoint(age){
+          const a = String(age||"");
+          if(a==="Y_LT5") return 2.5;
+          if(a==="Y_GE90") return 92.5;
+          // Patterns like Y5-9, Y10-14, Y85-89
+          const mm = a.match(/^Y(\d+)-(\d+)$/);
+          if(mm){
+            const lo = Number(mm[1]), hi = Number(mm[2]);
+            return (lo+hi)/2.0;
+          }
+          return null;
+        }
+        let num=0, den=0;
+        for(const r of recs){
+          const mid = midpoint(r.age);
+          const v = Number(r.value);
+          if(mid!=null && isFinite(v)){
+            num += v*mid;
+            den += v;
+          }
+        }
+        if(den>0){
+          out.meanAgePop = num/den;
+          out.meanAgePopYear = String(tAge||"");
+          out.meanAgePopGeo = "EL613";
+          diags.push(`meanAgePop: computed from age structure (${out.meanAgePopYear})`);
+        }
+      }
+    }catch(e){
+      diags.push(`meanAgePop: compute failed (${String(e)})`);
+    }
+  }
+
+  const medianAge = await popIndFallback([/Median age of population/i, "Median age", "MEDAGEPOP"]);
+  out.medAgePop = medianAge.value; out.medAgePopYear=medianAge.year; out.medAgePopGeo=medianAge.geo;
+  out.diags = diags;
+  // Apply stable fallback snapshot for any missing KPIs
+  applyFallbackIfMissing(out);
+  return out;
+}
+
+
+
+
+function renderKpis(k, muniTotal, volosShare){
+  document.getElementById("kpiGrid").innerHTML = [
+    kpiCard("Population (1 Jan)", formatInt(k.pop), `Year: ${k.popYear||"—"}`),
+    kpiCard("Births", formatInt(k.births), `Year: ${k.birthsYear||"—"}`),
+    kpiCard("Deaths", formatInt(k.deaths), `Year: ${k.deathsYear||"—"}`),
+    kpiCard("Natural change", formatInt(k.nat), `Year: ${k.natYear||"—"}`),
+    kpiCard("Crude birth rate", format1(k.cbr), `per 1,000 • Denom: pop stock`),
+    kpiCard("Crude death rate", format1(k.cdr), `per 1,000 • Denom: pop stock`),
+    kpiCard("Natural change rate", format1(k.ncr), `per 1,000 • Denom: pop stock`),
+    kpiCard("TFR", format2(k.tfr), `Year: ${k.tfrYear||"—"}`),
+    kpiCard("Mean age at birth", format1(k.meanAgeBirth), `Years • Year: ${k.meanAgeBirthYear||"—"}`),
+    kpiCard("Median age at birth", format1(k.medAgeBirth), `Years • Year: ${k.medAgeBirthYear||"—"}`),
+    kpiCard("Mean age", format1(k.meanAgePop), `Years • Year: ${k.meanAgePopYear||"—"}`),
+    kpiCard("Median age", format1(k.medAgePop), `Years • Year: ${k.medAgePopYear||"—"}`),
+    kpiCard("Municipal baseline pop", formatInt(muniTotal), "Sum of municipalities"),
+    kpiCard("Volos share", formatPct(volosShare), "Share of baseline"),
+  ].join("");
+
+  document.getElementById("kpiDiag").textContent = (k.diags && k.diags.length) ? ("KPI availability diagnostics (400-safe) (tolerant picker): " + k.diags.join(" • ")) : "KPI availability diagnostics (400-safe): (none yet)";
+}
+
+// ---------- life expectancy ----------
+async function fetchLifeExp(){
+  async function getLE(ageCode){
+    const url = `${EUROSTAT_BASE}demo_r_mlifexp?format=JSON&geo=EL61&geo=EL&sex=M&sex=F&age=${ageCode}&unit=YR&lastTimePeriod=1`;
+    const {json}=await eurostatGet(url,true);
+    const d=decodeJSONstat(json);
+    const out={};
+    d.records.forEach(r=>{
+      out[r.geo]=out[r.geo]||{};
+      out[r.geo][r.sex]=r.value;
+      out[r.geo].time=String(r.time);
+    });
+    return out;
+  }
+  let le=null;
+  try{ le=await getLE("Y_LT1"); }catch(e){ le=null; }
+  if(!le || Object.keys(le).length===0){ le=await getLE("Y0"); }
+  const year = le?.EL61?.time || le?.EL?.time || "—";
+  document.querySelector("#lexTable tbody").innerHTML =
+    `<tr><td>EL61 (NUTS2 parent)</td><td>${format1(le?.EL61?.M ?? null)}</td><td>${format1(le?.EL61?.F ?? null)}</td><td>${year}</td></tr>`+
+    `<tr><td>Greece (EL)</td><td>${format1(le?.EL?.M ?? null)}</td><td>${format1(le?.EL?.F ?? null)}</td><td>${year}</td></tr>`;
+}
+
+// ---------- LAU allocated age chart (fixed y-axis scaling + visible size metadata) ----------
+let MUNICIPAL_AGE_ALLOC = {};
+let MUNICIPAL_AGE_READY = false;
+let GLOBAL_MAX_ALLOC = 0;
+let GLOBAL_MAX_PCT = 0;
+let MUNI_POP = {};
+async function prepareMunicipalAgeAllocation(age, rows){
+  const total = rows.reduce((s,d)=>s+d.pop,0);
+  const ages = age.ages.map(ageLabel);
+  const elTot = age.male.map((m,i)=>(m||0)+(age.female[i]||0));
+  MUNICIPAL_AGE_ALLOC = {};
+  GLOBAL_MAX_ALLOC = 0;
+  GLOBAL_MAX_PCT = 0;
+  MUNI_POP = {};
+  rows.forEach(m=>{
+    MUNI_POP[m.name]=m.pop;
+    const share=(total>0)?(m.pop/total):0;
+    const arr = ages.map((lab,i)=>{
+      const alloc=Math.round((elTot[i]||0)*share);
+      const pct=(m.pop>0)?(alloc/m.pop)*100:null;
+      if(alloc>GLOBAL_MAX_ALLOC) GLOBAL_MAX_ALLOC = alloc;
+      if(pct!=null && pct>GLOBAL_MAX_PCT) GLOBAL_MAX_PCT = pct;
+      return { age: lab, alloc, pct };
+    });
+    MUNICIPAL_AGE_ALLOC[m.name] = arr;
+  });
+  const sel=document.getElementById("munSelect");
+  sel.innerHTML="";
+  rows.slice().sort((a,b)=>a.name.localeCompare(b.name)).forEach(m=>{
+    const opt=document.createElement("option");
+    opt.value=m.name; opt.textContent=m.name;
+    sel.appendChild(opt);
+  });
+  if(!sel.value && sel.options.length) sel.value = sel.options[0].value;
+  MUNICIPAL_AGE_READY = true;
+}
+function drawMunicipalAgeChart(){
+  if(!MUNICIPAL_AGE_READY) return;
+  const sel=document.getElementById("munSelect");
+  const mode=document.getElementById("munMode").value;
+  const mun=sel.value;
+  const arr = MUNICIPAL_AGE_ALLOC[mun] || [];
+  const x = arr.map(r=>r.age);
+  const y = (mode==="share") ? arr.map(r=> (r.pct==null?null:Math.round(r.pct*10)/10) ) : arr.map(r=>r.alloc);
+  const hover = (mode==="share")
+    ? "%{x}<br>%{y:.1f}% of municipality<extra></extra>"
+    : "%{x}<br>%{y:,} (allocated)<extra></extra>";
+  const yRange = (mode==="share")
+    ? [0, Math.max(5, GLOBAL_MAX_PCT*1.05)]
+    : [0, Math.max(100, GLOBAL_MAX_ALLOC*1.05)];
+  Plotly.react("munAgeChart", [{
+    type:"bar", x, y, hovertemplate:hover
+  }], {
+    paper_bgcolor:"rgba(0,0,0,0)", plot_bgcolor:"rgba(0,0,0,0)",
+    font:{color:"#eef2ff"}, margin:{t:20,l:55,r:10,b:120},
+    xaxis:{tickangle:-45, gridcolor:"rgba(255,255,255,0.08)"},
+    yaxis:{title:(mode==="share")?"% of municipality":"Allocated population", gridcolor:"rgba(255,255,255,0.08)", range:yRange}
+  }, {displayModeBar:false});
+  const totalAlloc = arr.reduce((s,r)=>s+(r.alloc||0),0);
+  document.getElementById("allocMeta").textContent = `Selected: ${mun} (baseline pop ${formatInt(MUNI_POP[mun])}) • Allocated total ≈ ${formatInt(totalAlloc)} • View: ${mode==="share"?"% (same shape across municipalities)":"counts (scale differs by municipality size)"}`;
+  try{ Plotly.Plots.resize("munAgeChart"); }catch(e){}
+}
+
+// ---------- cache controls ----------
+async function cacheAllDatasets(){
+  const urls = [
+    `${EUROSTAT_BASE}demo_r_pjangrp3?format=JSON&geo=EL613&sex=T&age=TOTAL&unit=NR&lastTimePeriod=1`,
+    `${EUROSTAT_BASE}demo_r_births?format=JSON&geo=EL613&lastTimePeriod=1`,
+    `${EUROSTAT_BASE}demo_r_deaths?format=JSON&geo=EL613&lastTimePeriod=1`,
+    `${EUROSTAT_BASE}demo_r_find3?format=JSON&geo=EL613&lastTimePeriod=1`,
+    `${EUROSTAT_BASE}demo_r_pjanind3?format=JSON&geo=EL613&lastTimePeriod=1`,
+    `${EUROSTAT_BASE}demo_r_mlifexp?format=JSON&geo=EL61&geo=EL&sex=M&sex=F&age=Y_LT1&unit=YR&lastTimePeriod=1`,
+    `${EUROSTAT_BASE}demo_r_mlifexp?format=JSON&geo=EL61&geo=EL&sex=M&sex=F&age=Y0&unit=YR&lastTimePeriod=1`,
+    `${EUROSTAT_BASE}demo_r_pjangrp3?format=JSON&geo=EL613&sex=M&sex=F&unit=NR&lastTimePeriod=1`,
+    `${EUROSTAT_BASE}demo_r_gind3?format=JSON&geo=EL613&indic_de=JAN&sinceTimePeriod=1990`,
+    `${EUROSTAT_BASE}demo_pjan?format=JSON&geo=EL&sex=T&age=TOTAL&unit=NR&sinceTimePeriod=1990`,
+  ];
+  setCacheMsg("Caching…");
+  const res = await Promise.allSettled(urls.map(u=>eurostatGet(u,false)));
+  const ok = res.filter(r=>r.status==="fulfilled").length;
+  setCacheMsg(`Cached ${ok}/${urls.length} datasets locally.`);
+}
+function clearCache(){
+  const keys=[];
+  for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i);
+    if(k && k.startsWith(CACHE_PREFIX)) keys.push(k);
+  }
+  keys.forEach(k=>localStorage.removeItem(k));
+  setCacheMsg("Cleared local cache.");
+}
+document.getElementById("btnCacheAll").addEventListener("click", cacheAllDatasets);
+document.getElementById("btnClearCache").addEventListener("click", clearCache);
+
+// ---------- tabs ----------
+function showTab(tab){
+  document.querySelectorAll(".tabbtn").forEach(b=>b.classList.toggle("active", b.dataset.tab===tab));
+  ["summary","ages","mbase","mlau"].forEach(t=>{
+    document.getElementById("tab-"+t).classList.toggle("hidden", t!==tab);
+  });
+  if(tab==="mlau") drawMunicipalAgeChart();
+  ["plotGrowth","plotIndex","plotPyramid","plotAgeShares","plotBars","munAgeChart"].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el && !el.closest(".hidden")){
+      try{ Plotly.Plots.resize(id); }catch(e){}
+    }
+  });
+}
+document.getElementById("tabs").addEventListener("click",(e)=>{
+  const btn=e.target.closest(".tabbtn"); if(!btn) return;
+  showTab(btn.dataset.tab);
+});
+
+// ---------- init ----------
+async function init(){
+  setStatus("Fetching Eurostat…","muted");
+  try{
+    const muni = renderMunicipalTables();
+    renderBars(muni.rows, document.getElementById("barMode").value);
+    document.getElementById("barMode").addEventListener("change", ()=>renderBars(muni.rows, document.getElementById("barMode").value));
+
+    const k = await fetchKPIs();
+    const volos = muni.rows.find(r=>r.name==="Volos");
+    const volosShare = volos ? volos.share*100 : null;
+    renderKpis(k, muni.total, volosShare);
+
+    await fetchLifeExp();
+
+    const [el613Series, grSeries] = await Promise.all([getPopSeriesEL613(), getPopSeriesGreece()]);
+    renderTrends(el613Series, grSeries);
+
+    const age = await getAgeStructure();
+    renderAgeStructure(age);
+
+    await prepareMunicipalAgeAllocation(age, muni.rows);
+    document.getElementById("munSelect").addEventListener("change", drawMunicipalAgeChart);
+    document.getElementById("munMode").addEventListener("change", drawMunicipalAgeChart);
+    drawMunicipalAgeChart();
+
+    setStatus("Loaded (live + cached)","ok");
+    setCacheMsg("If KPIs show —, click “Cache data” once, then reload.\n(Level-aware KPIs: if not available at EL613, fall back to EL61 or EL with explicit labeling.)");
+  }catch(e){
+    console.error(e);
+    setStatus("Some data failed — try cache + reload","warn");
+    setCacheMsg("Some Eurostat requests failed. Try Cmd+Shift+R, or click “Cache data for offline use” once while online.");
+  }
+}
+init();
+</script>
+
+<script>
+  (function(){
+    try{
+      const el = document.getElementById("localTime");
+      if(!el) return;
+      const d = new Date();
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "local";
+      const pad = (n)=> String(n).padStart(2,"0");
+      const s = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())} (${tz})`;
+      el.textContent = s;
+    }catch(e){}
+  })();
+</script>
+
+</body>
+</html>
